@@ -88,6 +88,39 @@ with tf.variable_scope('CPM'):
 
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
+    saver = tf.train.Saver()
+    saver.restore(sess, 'saved_sessions/init_session/init')
+    hmap_person = sess.run(heatmap_person_large, {image_in: b_image})
+
+    hmap_person = np.squeeze(hmap_person)
+    centers = ut.detect_objects_heatmap(hmap_person)
+    b_pose_image, b_pose_cmap = ut.prepare_input_posenet(b_image[0], centers, [config.INPUT_SIZE, image.shape[1]],
+                                                         [config.INPUT_SIZE, config.INPUT_SIZE])
+
+    feed_dict = {
+        pose_image_in: b_pose_image,
+        pose_centermap_in: b_pose_cmap
+    }
+    _hmap_pose = sess.run(heatmap_pose, feed_dict)
+
+# Estimate 2D poses
+parts, visible = ut.detect_parts_heatmaps(_hmap_pose, centers, [config.INPUT_SIZE, config.INPUT_SIZE])
+
+# Estimate 3D poses
+poseLifting = Prob3dPose()
+pose2D, weights = Prob3dPose.transform_joints(parts, visible)
+pose3D = poseLifting.compute_3d(pose2D, weights)
+
+# Show 2D poses
+plt.figure()
+draw_limbs(image, parts, visible)
+plt.imshow(image)
+plt.axis('off')
+
+# Show 3D poses
+for single_3D in pose3D:
+    # or plot_pose(Prob3dPose.centre_all(single_3D))
+    plot_pose(single_3D)
 
 entries = {"image_shape": shape}
 out_dir = None
