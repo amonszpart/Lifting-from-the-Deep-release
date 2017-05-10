@@ -83,9 +83,13 @@ class Prob3dPose:
     @staticmethod
     def centre_all(data):
         """center all data"""
-        if data.ndim == 2:
-            return Prob3dPose.centre(data)
-        return (data.transpose(2, 0, 1) - data.mean(2)).transpose(1, 2, 0)
+        try:
+            if data.ndim == 2:
+                return Prob3dPose.centre(data)
+            return (data.transpose(2, 0, 1) - data.mean(2)).transpose(1, 2, 0)
+        except ValueError:
+            print("Could not center")
+            return data
 
     @staticmethod
     def normalise_data(d2):

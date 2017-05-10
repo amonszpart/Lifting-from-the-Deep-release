@@ -69,3 +69,4 @@ def plot_pose(pose):
     ax.set_ylim3d(smallest, largest)
     ax.set_zlim3d(smallest, largest)
 
+
