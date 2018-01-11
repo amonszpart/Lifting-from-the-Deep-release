@@ -79,16 +79,26 @@ def prepare_input_posenet(image, objects, size_person, size, sigma=25, max_num_o
     return np.split(result, [3], 3)
 
 
-def detect_parts_heatmaps(heatmaps, centers, size, num_parts=14):
+def detect_parts_heatmaps(heatmaps, centers, size, visible_part_threshold,
+                          num_parts=14):
     parts = np.zeros((len(centers), num_parts, 2), dtype=np.int32)
     visible = np.zeros((len(centers), num_parts), dtype=bool)
+    visible_float = np.zeros((len(centers), num_parts), dtype=float)
     for oid, (yc, xc) in enumerate(centers):
-        part_hmap = skimage.transform.resize(np.clip(heatmaps[oid], -1, 1), size)
+        part_hmap = skimage.transform.resize(
+            np.clip(heatmaps[oid], -1, 1), size)
         for pid in xrange(num_parts):
             y, x = np.unravel_index(np.argmax(part_hmap[:, :, pid]), size)
             parts[oid, pid] = y + yc - size[0] // 2, x + xc - size[1] // 2
-            visible[oid, pid] = np.mean(part_hmap[:, :, pid]) > config.VISIBLE_PART
-    return parts, visible
+            # visible[oid, pid] = np.mean(part_hmap[:, :, pid]) > config.VISIBLE_PART
+            # print(
+            #     "[process.py::detect_parts_heatmaps] "
+            #     "part_hmap[:, :, pid].shape: %s"
+            #     % repr(part_hmap[:, :, pid].shape))
+            visible[oid, pid] = \
+                np.mean(part_hmap[:, :, pid]) > visible_part_threshold
+            visible_float[oid, pid] = np.mean(part_hmap[:, :, pid])
+    return parts, visible, visible_float
 
 
 def import_json(path='json/MPI_annotations.json', order='json/MPI_order.npy'):

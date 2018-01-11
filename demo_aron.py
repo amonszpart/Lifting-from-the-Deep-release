@@ -4,6 +4,23 @@
 Created on Dec 20 17:39 2016
 
 @author: Denis Tome'
+
+
+The function that is doing all the work of computing the 3D poses and trying
+to minimise the re-projection error for each of the PPCA models independently
+is called pick_e.
+This is defined inside /utils/externals/upright_fast.pyx (cython)
+
+If you look at the affine_estimate function, that is where the function is
+called and returns among other parameters also a res value: one for each of
+the PPCA models.
+In the create_rec function you can see how that res value is used to chose
+among the 3 PPCA models which is the best.
+
+score = (res * res_weight + lgdet[:, np.newaxis] * (scale ** 2))
+best = np.argmin(score, 0)
+
+best contains the index of the best PPCA model to use.
 """
 import tensorflow as tf
 
@@ -22,6 +39,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-i', dest="image", help="Image to work with")
 parser.add_argument('-d', dest="image_dir", help="Folder of images to work with")
 parser.add_argument('--no-vis', action="store_true", help="No visualization")
+parser.add_argument('--vis-thresh', type=float,
+                    help='Heatmap detection threshold. Default=1e-3.',
+                    default=config.VISIBLE_PART)
 args = parser.parse_args()
 
 
@@ -88,42 +108,10 @@ with tf.variable_scope('CPM'):
 
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
-    saver = tf.train.Saver()
-    saver.restore(sess, 'saved_sessions/init_session/init')
-    hmap_person = sess.run(heatmap_person_large, {image_in: b_image})
 
-    hmap_person = np.squeeze(hmap_person)
-    centers = ut.detect_objects_heatmap(hmap_person)
-    b_pose_image, b_pose_cmap = ut.prepare_input_posenet(b_image[0], centers, [config.INPUT_SIZE, image.shape[1]],
-                                                         [config.INPUT_SIZE, config.INPUT_SIZE])
-
-    feed_dict = {
-        pose_image_in: b_pose_image,
-        pose_centermap_in: b_pose_cmap
-    }
-    _hmap_pose = sess.run(heatmap_pose, feed_dict)
-
-# Estimate 2D poses
-parts, visible = ut.detect_parts_heatmaps(_hmap_pose, centers, [config.INPUT_SIZE, config.INPUT_SIZE])
-
-# Estimate 3D poses
-poseLifting = Prob3dPose()
-pose2D, weights = Prob3dPose.transform_joints(parts, visible)
-pose3D = poseLifting.compute_3d(pose2D, weights)
-
-# Show 2D poses
-plt.figure()
-draw_limbs(image, parts, visible)
-plt.imshow(image)
-plt.axis('off')
-
-# Show 3D poses
-for single_3D in pose3D:
-    # or plot_pose(Prob3dPose.centre_all(single_3D))
-    plot_pose(single_3D)
-
-entries = {"image_shape": shape}
+entries = {"image_shape": shape, 'vis_thresh': args.vis_thresh}
 out_dir = None
+prev_entry = None
 for fname_id, fname in enumerate(sorted(inputs)):
     if out_dir is None:
         out_dir = os.path.join(os.path.dirname(fname), os.pardir, "denis")
@@ -162,17 +150,25 @@ for fname_id, fname in enumerate(sorted(inputs)):
         _hmap_pose = sess.run(heatmap_pose, feed_dict)
 
     # Estimate 2D poses
-    parts, visible = \
+    parts, visible, visible_float = \
         ut.detect_parts_heatmaps(_hmap_pose, centers,
-                                 [config.INPUT_SIZE, config.INPUT_SIZE])
+                                 [config.INPUT_SIZE, config.INPUT_SIZE],
+                                 visible_part_threshold=args.vis_thresh)
     # show_heatmaps(_hmap_pose, centers,
     #               [config.INPUT_SIZE, config.INPUT_SIZE])
 
     try:
+    # if True:
         # Estimate 3D poses
         poseLifting = Prob3dPose()
+        print("ok0")
         pose2D, weights = Prob3dPose.transform_joints(parts, visible)
+        print("ok1")
         pose3D = poseLifting.compute_3d(pose2D, weights)
+        print("pose3d: %s" % pose3D)
+        print("weights: %s" % weights)
+        print("pose3d.shape: %s" % repr(pose3D.shape))
+        print("weights.shape: %s" % repr(weights.shape))
 
         if not args.no_vis:
             # Show 2D poses
@@ -189,10 +185,13 @@ for fname_id, fname in enumerate(sorted(inputs)):
 
         entry = {'pose_2d': parts.tolist(),
                  'visible': visible.astype(int).tolist(),
+                 'visible_float': visible_float.tolist(),  # "confidence"
                  'pose_3d': pose3D.tolist(),
                  'centered_3d': [poseLifting.centre_all(single_3D).tolist()
                                  for single_3D in pose3D]}
         entries[os.path.splitext(os.path.split(fname)[1])[0]] = entry
+
+        prev_entry = entry
     except ValueError as e:
         print("Problem for %s: %s" % (fname, e))
     # if len(entries):

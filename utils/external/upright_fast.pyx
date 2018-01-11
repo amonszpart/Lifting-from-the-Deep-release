@@ -47,14 +47,13 @@ def pick_e(np.ndarray[DTYPE_t, ndim=3] w,
     cache_a=np.empty((check.size,basis,frames))
     residue=np.empty((check.size,frames))
 
-    if (Lambda.size!=0):
+    if Lambda.size != 0:
         res=np.zeros((frames,points*2+basis+points))
         proj_e=np.zeros((basis,2*points+basis+points))
     else:
         res=np.empty((frames,points*2))
         proj_e=np.empty((basis,2*points))
-    Ps=np.empty((2,points))
-
+    Ps = np.empty((2,points))
     if weights.size==0:
         for i in xrange(charts):
             if Lambda.size!=0:
@@ -244,10 +243,11 @@ cdef estimate_a_and_r_with_res_weights(np.ndarray[DTYPE_t, ndim=3] w,
         rot.dot(s0,Ps)
         res[:,:points*2]=w_reshape
         res[:,:points*2]-=Ps_reshape
-        proj_e[:,:2*points]=rot.dot(e).transpose(1,0,2).reshape(e.shape[0],2*points)
+        proj_e[:,:2*points] = \
+            rot.dot(e).transpose(1,0,2).reshape(e.shape[0],2*points)
 
-        if (Lambda.size!=0):
-            proj_e[:,2*points:2*points+basis]=d
+        if Lambda.size != 0:
+            proj_e[:,2*points:2*points+basis] = d
             res[:,2*points:].fill(0)
             res[:,:points*2]*=Lambda[Lambda.shape[0]-1]
             proj_e[:,:points*2]*=Lambda[Lambda.shape[0]-1]
@@ -260,7 +260,12 @@ cdef estimate_a_and_r_with_res_weights(np.ndarray[DTYPE_t, ndim=3] w,
         for j in xrange(frames):
             p_copy[:]=proj_e
             p_copy[:,:points*2]*=weights[j]
-            a[i,:,j], residue[i,j], _, _ = np.linalg.lstsq(p_copy.T, res[j].T)
+            print("p_copy.shape: %s" % repr(p_copy.T.shape))
+            print("res[j].T.shape: %s" % repr(res[j].T.shape))
+            tmp = np.linalg.lstsq(p_copy.T, res[j].T)
+            print("lstsq output: %s" % repr(tmp))
+            a[i,:,j], residue[i,j], _, _ = tmp  # np.linalg.lstsq(p_copy.T, res[j].T)
+            # a[i,:,j], residue[i,j], _, _ = np.linalg.lstsq(p_copy.T, res[j].T)
     #find and return best coresponding solution
     best=np.argmin(residue,0)
     index=(best, np.arange(frames))
