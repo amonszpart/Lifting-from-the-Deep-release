@@ -42,6 +42,13 @@ parser.add_argument('--no-vis', action="store_true", help="No visualization")
 parser.add_argument('--vis-thresh', type=float,
                     help='Heatmap detection threshold. Default=1e-3.',
                     default=config.VISIBLE_PART)
+parser.add_argument('--thresh-min-max', type=float,
+                    help='Heatmap maximum and minimum difference threshold '
+                         'that removes spurious 2D pose centroids.',
+                    default=0.3)
+parser.add_argument('--center-thresh', type=float,
+                    help="Heatmap response at pose centroid. Default: 0.4",
+                    default=config.CENTER_TR)
 args = parser.parse_args()
 
 
@@ -128,14 +135,16 @@ for fname_id, fname in enumerate(sorted(inputs)):
         hmap_person = sess.run(heatmap_person_large, {image_in: b_image})
 
     hmap_person = np.squeeze(hmap_person)
-    centers = ut.detect_objects_heatmap(hmap_person)
-    print("hmap_person.shape: %s" % repr(hmap_person.shape))
+    centers = ut.detect_objects_heatmap(hmap_person,
+                                        args.center_thresh,
+                                        args.thresh_min_max)
+    # print("hmap_person.shape: %s" % repr(hmap_person.shape))
     b_pose_image, b_pose_cmap = \
         ut.prepare_input_posenet(b_image[0], centers,
                                  [config.INPUT_SIZE, shape[1]],
                                  [config.INPUT_SIZE, config.INPUT_SIZE])
-    print("b_pose_image.shape: %s" % repr(b_pose_image.shape))
-    print("b_bose_cmap.shape: %s" % repr(b_pose_cmap.shape))
+    # print("b_pose_image.shape: %s" % repr(b_pose_image.shape))
+    # print("b_bose_cmap.shape: %s" % repr(b_pose_cmap.shape))
 
     sess = tf.InteractiveSession()
     with tf.Session() as sess:
@@ -144,6 +153,7 @@ for fname_id, fname in enumerate(sorted(inputs)):
 
         feed_dict = {
             pose_image_in: b_pose_image,
+            
             pose_centermap_in: b_pose_cmap
         }
 
@@ -161,14 +171,15 @@ for fname_id, fname in enumerate(sorted(inputs)):
     # if True:
         # Estimate 3D poses
         poseLifting = Prob3dPose()
-        print("ok0")
+        # print("ok0")
         pose2D, weights = Prob3dPose.transform_joints(parts, visible)
-        print("ok1")
+        print("pose2D: %s" % repr(pose2D.shape))
+        # print("ok1")
         pose3D = poseLifting.compute_3d(pose2D, weights)
-        print("pose3d: %s" % pose3D)
-        print("weights: %s" % weights)
-        print("pose3d.shape: %s" % repr(pose3D.shape))
-        print("weights.shape: %s" % repr(weights.shape))
+        # print("pose3d: %s" % pose3D)
+        # print("weights: %s" % weights)
+        # print("pose3d.shape: %s" % repr(pose3D.shape))
+        # print("weights.shape: %s" % repr(weights.shape))
 
         if not args.no_vis:
             # Show 2D poses

@@ -17,12 +17,13 @@ from itertools import compress
 from scipy.stats import multivariate_normal
 
 
-def detect_objects_heatmap(heatmap):
+def detect_objects_heatmap(heatmap, center_threshold=config.CENTER_TR,
+                           thresh_min_max=0.3):
     data = 256 * heatmap
     data_max = filters.maximum_filter(data, 3)
     maxima = (data == data_max)
     data_min = filters.minimum_filter(data, 3)
-    diff = ((data_max - data_min) > 0.3)
+    diff = ((data_max - data_min) > thresh_min_max)
     maxima[diff == 0] = 0
     labeled, num_objects = ndimage.label(maxima)
     slices = ndimage.find_objects(labeled)
@@ -30,7 +31,7 @@ def detect_objects_heatmap(heatmap):
     pidx = 0
     for (dy, dx) in slices:
         pos = [(dy.start + dy.stop - 1) / 2, (dx.start + dx.stop - 1) / 2]
-        if heatmap[pos[0], pos[1]] > config.CENTER_TR:
+        if heatmap[pos[0], pos[1]] > center_threshold:
             objects[pidx, :] = pos
             pidx += 1
     return objects[:pidx]
