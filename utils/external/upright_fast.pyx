@@ -260,10 +260,10 @@ cdef estimate_a_and_r_with_res_weights(np.ndarray[DTYPE_t, ndim=3] w,
         for j in xrange(frames):
             p_copy[:]=proj_e
             p_copy[:,:points*2]*=weights[j]
-            print("p_copy.shape: %s" % repr(p_copy.T.shape))
-            print("res[j].T.shape: %s" % repr(res[j].T.shape))
+            # print("p_copy.shape: %s" % repr(p_copy.T.shape))
+            # print("res[j].T.shape: %s" % repr(res[j].T.shape))
             tmp = np.linalg.lstsq(p_copy.T, res[j].T)
-            print("lstsq output: %s" % repr(tmp))
+            # print("lstsq output: %s" % repr(tmp))
             a[i,:,j], residue[i,j], _, _ = tmp  # np.linalg.lstsq(p_copy.T, res[j].T)
             # a[i,:,j], residue[i,j], _, _ = np.linalg.lstsq(p_copy.T, res[j].T)
     #find and return best coresponding solution

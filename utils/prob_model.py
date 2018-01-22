@@ -88,7 +88,7 @@ class Prob3dPose:
                 return Prob3dPose.centre(data)
             return (data.transpose(2, 0, 1) - data.mean(2)).transpose(1, 2, 0)
         except ValueError:
-            print("Could not center")
+            # print("Could not center")
             return data
 
     @staticmethod
@@ -155,7 +155,7 @@ class Prob3dPose:
         res, a, r = pick_e(w, e2, t_m, self.cam, s, weights=weights,
                            interval=0.01, depth_reg=depth_reg,
                            scale_prior=scale_mean)
-        print("pick_e done")
+        # print("pick_e done")
         scale = a[:, :, 0]
         reestimate = scale > cap_scale
         m = self.mu * cap_scale
@@ -190,12 +190,12 @@ class Prob3dPose:
         """Reconstruct 3D pose given a 2D pose"""
         _SIGMA_SCALING = 5.2
 
-        print("calling affine_estimate on w2: %s" % repr(w2.shape))
+        # print("calling affine_estimate on w2: %s" % repr(w2.shape))
         res, e, a, r, scale = \
             self.affine_estimate(
                 w2, scale=_SIGMA_SCALING, weights=weights,
                 depth_reg=0, cap_scale=-0.001, scale_mean=-0.003)
-        print("res: %s" % repr(res))
+        # print("res: %s" % repr(res))
         remaining_dims = 3 * w2.shape[2] - e.shape[1]
         assert (remaining_dims >= 0)
         llambda = -np.log(self.sigma)
@@ -226,11 +226,11 @@ class Prob3dPose:
                 reg_joints[oid, _J_POS] = singe_pose
 
             norm_pose, _ = Prob3dPose.normalise_data(reg_joints)
-            print("normalise_data finished (branch 0)")
+            # print("normalise_data finished (branch 0)")
         else:
             norm_pose, _ = Prob3dPose.normalise_data(pose_2d)
-            print("normalise_data finished (branch 1)")
+            # print("normalise_data finished (branch 1)")
 
         pose_3d = self.create_rec(norm_pose, weights) * _SCALE_3D
-        print("create_rec finished")
+        # print("create_rec finished")
         return pose_3d
