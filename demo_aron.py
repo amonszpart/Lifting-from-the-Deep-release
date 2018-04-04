@@ -80,7 +80,7 @@ def load_image(fname):
     image = cv2.cvtColor(cv2.imread(fname), cv2.COLOR_BGR2RGB)
     scale = config.INPUT_SIZE/(image.shape[0] * 1.0)
     image = cv2.resize(image, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-    print("image.size: %s" % repr(image.shape))
+    # print("image.size: %s" % repr(image.shape))
     b_image = np.array(image[np.newaxis] / 255.0 - 0.5, dtype=np.float32)
     return b_image, image
 
@@ -122,7 +122,7 @@ prev_entry = None
 for fname_id, fname in enumerate(sorted(inputs)):
     if out_dir is None:
         out_dir = os.path.join(os.path.dirname(fname), os.pardir, "denis")
-        print("will write to %s" % out_dir)
+        # print("will write to %s" % out_dir)
         try:
             os.makedirs(out_dir)
         except OSError:
@@ -173,7 +173,7 @@ for fname_id, fname in enumerate(sorted(inputs)):
         poseLifting = Prob3dPose()
         # print("ok0")
         pose2D, weights = Prob3dPose.transform_joints(parts, visible)
-        print("pose2D: %s" % repr(pose2D.shape))
+        # print("pose2D: %s" % repr(pose2D.shape))
         # print("ok1")
         pose3D = poseLifting.compute_3d(pose2D, weights)
         # print("pose3d: %s" % pose3D)
