@@ -22,11 +22,15 @@ def draw_limbs(image, pose_2d, visible):
         for lid, (p0, p1) in enumerate(_LIMBS):
             if not (visible[oid][p0] and visible[oid][p1]):
                 continue
-            y0, x0 = pose_2d[oid][p0]
-            y1, x1 = pose_2d[oid][p1]
+            y0, x0 = (int(round(c)) for c in pose_2d[oid][p0])
+            y1, x1 = (int(round(c)) for c in pose_2d[oid][p1])
             cv2.circle(image, (x0, y0), JOINT_DRAW_SIZE, _COLORS[lid], -1)
             cv2.circle(image, (x1, y1), JOINT_DRAW_SIZE, _COLORS[lid], -1)
             cv2.line(image, (x0, y0), (x1, y1), _COLORS[lid], LIMB_DRAW_SIZE, 16)
+        c = int(round(pose_2d[oid][0, 0])), int(round(pose_2d[oid][0, 1]))
+        cv2.putText(image, text="%d" % oid,
+                    org=(c[0], c[1]), fontFace=1, fontScale=3,
+                    color=(255, 200, 255))
 
 
 def plot_pose(pose):

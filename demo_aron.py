@@ -33,6 +33,7 @@ import os
 import json
 
 import skimage # by Aron for show_heatmaps
+from openpose import JointOpenPose
 
 import argparse
 parser = argparse.ArgumentParser()
@@ -50,7 +51,8 @@ parser.add_argument('--center-thresh', type=float,
                     help="Heatmap response at pose centroid. Default: 0.4",
                     default=config.CENTER_TR)
 args = parser.parse_args()
-
+assert ((args.image is None) != (args.image_dir is None)), \
+    "Need either image or directory"
 
 def default_encode(o):
     """JSON encoder for float values"""
@@ -76,13 +78,16 @@ def show_heatmaps(heatmaps, centers, size, num_parts=14):
     plt.show()
 
 
-def load_image(fname):
+def load_image(fname, return_scale=False):
     image = cv2.cvtColor(cv2.imread(fname), cv2.COLOR_BGR2RGB)
     scale = config.INPUT_SIZE/(image.shape[0] * 1.0)
     image = cv2.resize(image, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
     # print("image.size: %s" % repr(image.shape))
     b_image = np.array(image[np.newaxis] / 255.0 - 0.5, dtype=np.float32)
-    return b_image, image
+    if return_scale:
+        return b_image, image, scale
+    else:
+        return b_image, image
 
 inputs = []
 if args.image_dir is not None:
@@ -93,7 +98,7 @@ else:
     fname = args.image or 'images/test_image.png'
     inputs.append(fname)
 
-b_image, image = load_image(inputs[0])
+b_image, image, scale = load_image(inputs[0], return_scale=True)
 shape = image.shape
 
 tf.reset_default_graph()
@@ -119,59 +124,86 @@ with tf.Session() as sess:
 entries = {"image_shape": shape, 'vis_thresh': args.vis_thresh}
 out_dir = None
 prev_entry = None
+scene_root = os.path.join(os.path.dirname(inputs[0]), os.pardir)
 for fname_id, fname in enumerate(sorted(inputs)):
     if out_dir is None:
-        out_dir = os.path.join(os.path.dirname(fname), os.pardir, "denis")
+        out_dir = os.path.join(scene_root, "denis")
         # print("will write to %s" % out_dir)
         try:
             os.makedirs(out_dir)
         except OSError:
             pass
-    b_image, image = load_image(fname)
-    with tf.Session() as sess:
-        # sess.run(tf.global_variables_initializer())
-        saver = tf.train.Saver()
-        saver.restore(sess, 'saved_sessions/person_MPI/init')
-        hmap_person = sess.run(heatmap_person_large, {image_in: b_image})
+    name_im = os.path.splitext(os.path.split(fname)[1])[0]
+    frame_id = int(name_im.split('_')[-1])
+    p_keypoints = "%s/openpose_keypoints/color_%05d_keypoints.json" \
+                  % (scene_root, frame_id)
+    # todo: frame_id needs to be created
+    if os.path.exists(p_keypoints):
+        data = json.load(open(p_keypoints, 'r'))
+        parts, visible, visible_float = \
+            JointOpenPose.parse_keypoints(data['people'])
+        if False:
+            parts = np.concatenate((parts[:, Prob3dPose._H36M_REV, 1:2],
+                                    parts[:, Prob3dPose._H36M_REV, 0:1]), axis=2)
+            visible = visible[:, Prob3dPose._H36M_REV]
+            visible_float = visible_float[:, Prob3dPose._H36M_REV]
+        else:
+            parts = np.concatenate((parts[:, :, 1:2],
+                                    parts[:, :, 0:1]), axis=2)
+            visible = visible[:, :]
+            visible_float = visible_float[:, :]
 
-    hmap_person = np.squeeze(hmap_person)
-    centers = ut.detect_objects_heatmap(hmap_person,
-                                        args.center_thresh,
-                                        args.thresh_min_max)
-    # print("hmap_person.shape: %s" % repr(hmap_person.shape))
-    b_pose_image, b_pose_cmap = \
-        ut.prepare_input_posenet(b_image[0], centers,
-                                 [config.INPUT_SIZE, shape[1]],
-                                 [config.INPUT_SIZE, config.INPUT_SIZE])
-    # print("b_pose_image.shape: %s" % repr(b_pose_image.shape))
-    # print("b_bose_cmap.shape: %s" % repr(b_pose_cmap.shape))
+        parts *= scale
+    else:
+        b_image, image = load_image(fname)
+        with tf.Session() as sess:
+            # sess.run(tf.global_variables_initializer())
+            saver = tf.train.Saver()
+            saver.restore(sess, 'saved_sessions/person_MPI/init')
+            hmap_person = sess.run(heatmap_person_large, {image_in: b_image})
 
-    sess = tf.InteractiveSession()
-    with tf.Session() as sess:
-        saver = tf.train.Saver()
-        saver.restore(sess, 'saved_sessions/pose_MPI/init')
+        hmap_person = np.squeeze(hmap_person)
+        centers = ut.detect_objects_heatmap(hmap_person,
+                                            args.center_thresh,
+                                            args.thresh_min_max)
+        # print("hmap_person.shape: %s" % repr(hmap_person.shape))
+        b_pose_image, b_pose_cmap = \
+            ut.prepare_input_posenet(b_image[0], centers,
+                                     [config.INPUT_SIZE, shape[1]],
+                                     [config.INPUT_SIZE, config.INPUT_SIZE])
+        # print("b_pose_image.shape: %s" % repr(b_pose_image.shape))
+        # print("b_bose_cmap.shape: %s" % repr(b_pose_cmap.shape))
 
-        feed_dict = {
-            pose_image_in: b_pose_image,
-            
-            pose_centermap_in: b_pose_cmap
-        }
+        sess = tf.InteractiveSession()
+        with tf.Session() as sess:
+            saver = tf.train.Saver()
+            saver.restore(sess, 'saved_sessions/pose_MPI/init')
 
-        _hmap_pose = sess.run(heatmap_pose, feed_dict)
+            feed_dict = {
+                pose_image_in: b_pose_image,
 
-    # Estimate 2D poses
-    parts, visible, visible_float = \
-        ut.detect_parts_heatmaps(_hmap_pose, centers,
-                                 [config.INPUT_SIZE, config.INPUT_SIZE],
-                                 visible_part_threshold=args.vis_thresh)
+                pose_centermap_in: b_pose_cmap
+            }
+
+            _hmap_pose = sess.run(heatmap_pose, feed_dict)
+
+        # Estimate 2D poses
+        parts, visible, visible_float = \
+            ut.detect_parts_heatmaps(_hmap_pose, centers,
+                                     [config.INPUT_SIZE, config.INPUT_SIZE],
+                                     visible_part_threshold=args.vis_thresh)
     # show_heatmaps(_hmap_pose, centers,
     #               [config.INPUT_SIZE, config.INPUT_SIZE])
 
+    # print("parts:\n%s" % (parts / scale))
+    # p_txt = os.path.join(out_dir, os.pardir, "debug3", "parts.txt")
+    # np.savetxt(p_txt, parts.reshape((-1, 2)), fmt="%g", delimiter=',')
     try:
     # if True:
         # Estimate 3D poses
         poseLifting = Prob3dPose()
-        # print("ok0")
+        # parts: (k, 14, 2) int32, where k is the number of skeletons
+        # visible: (k, 14) bool
         pose2D, weights = Prob3dPose.transform_joints(parts, visible)
         # print("pose2D: %s" % repr(pose2D.shape))
         # print("ok1")
@@ -186,13 +218,16 @@ for fname_id, fname in enumerate(sorted(inputs)):
             plt.figure()
             draw_limbs(image, parts, visible)
             plt.imshow(image)
+            p_tmp = os.path.join(out_dir, os.pardir, "debug3",
+                                 "debug_%05d.jpg" % frame_id)
+            plt.savefig(p_tmp)
             plt.axis('off')
 
             # Show 3D poses
             for single_3D in pose3D:
                 plot_pose(poseLifting.centre_all(single_3D))
-
             plt.show()
+            plt.close()
 
         entry = {'pose_2d': parts.tolist(),
                  'visible': visible.astype(int).tolist(),
@@ -200,7 +235,7 @@ for fname_id, fname in enumerate(sorted(inputs)):
                  'pose_3d': pose3D.tolist(),
                  'centered_3d': [poseLifting.centre_all(single_3D).tolist()
                                  for single_3D in pose3D]}
-        entries[os.path.splitext(os.path.split(fname)[1])[0]] = entry
+        entries[name_im] = entry
 
         prev_entry = entry
     except ValueError as e:

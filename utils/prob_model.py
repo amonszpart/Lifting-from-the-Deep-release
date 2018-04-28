@@ -13,6 +13,8 @@ import utils.config as config
 
 
 class Prob3dPose:
+    _H36M_ORDER = [8, 9, 10, 11, 12, 13, 1, 0, 5, 6, 7, 2, 3, 4]
+    _H36M_REV = [_H36M_ORDER.index(i) for i in range(len(_H36M_ORDER))]
 
     def __init__(self, cam_matrix=[]):
         model_param = sio.loadmat('saved_sessions/prob_model/prob_model_params.mat')
@@ -104,12 +106,13 @@ class Prob3dPose:
         d2 /= m2[:, np.newaxis, np.newaxis]
         return d2, m2
 
-    @staticmethod
-    def transform_joints(pose_2d, visible_joints):
+    @classmethod
+    def transform_joints(cls, pose_2d, visible_joints):
         """Transform the set of joints according to what the probabilistic model expects as input.
         It returns the new set of joints of each of the people and the set of weights for the joints."""
 
-        _H36M_ORDER = [8, 9, 10, 11, 12, 13, 1, 0, 5, 6, 7, 2, 3, 4]
+        # _H36M_ORDER = [8, 9, 10, 11, 12, 13, 1, 0, 5, 6, 7, 2, 3, 4]
+        _H36M_ORDER = cls._H36M_ORDER
         _W_POS = [1, 2, 3, 4, 5, 6, 8, 10, 11, 12, 13, 14, 15, 16]
 
         def swap_xy(poses):
