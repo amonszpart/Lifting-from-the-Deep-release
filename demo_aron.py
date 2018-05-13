@@ -34,6 +34,7 @@ import json
 
 import skimage # by Aron for show_heatmaps
 from openpose import JointOpenPose
+from stealth.logic.scenelet import Scenelet
 
 import argparse
 parser = argparse.ArgumentParser()
@@ -50,9 +51,23 @@ parser.add_argument('--thresh-min-max', type=float,
 parser.add_argument('--center-thresh', type=float,
                     help="Heatmap response at pose centroid. Default: 0.4",
                     default=config.CENTER_TR)
+parser.add_argument('--dest-dir', type=str, help="Where to save output.",
+                    default='denis')
+parser.add_argument('--skel2d', type=str, help="2D skeleton file to use.")
+parser.add_argument('-start', type=int, help='First frame')
+parser.add_argument('-end', type=int, help='Last frame (inclusive)')
 args = parser.parse_args()
 assert ((args.image is None) != (args.image_dir is None)), \
     "Need either image or directory"
+
+if hasattr(args, 'skel2d') and args.skel2d is not None:
+    if not args.skel2d.startswith(os.sep) \
+      and hasattr(args, 'd') and args.d is not None:
+        args.skel2d = os.path.normpath(
+          os.path.join(args.d, os.pardir, args.skel2d))
+    args.dest_dir = 'gt'
+else:
+    args.skel2d = None
 
 def default_encode(o):
     """JSON encoder for float values"""
@@ -128,10 +143,13 @@ out_dir = None
 prev_entry = None
 scene_root = os.path.join(os.path.dirname(inputs[0]), os.pardir)
 
+skel2d = Scenelet.load(args.skel2d) \
+    if args.skel2d is not None \
+    else None
 #"build/examples/openpose/openpose.bin --image_dir /media/data/amonszpa/stealth/shared/video_recordings/angrymen00/origjpg/ --write_json /media/data/amonszpa/stealth/shared/video_recordings/angrymen00/openpose_keypoints --display 0 -face"
 for fname_id, fname in enumerate(sorted(inputs)):
     if out_dir is None:
-        out_dir = os.path.join(scene_root, "denis")
+        out_dir = os.path.join(scene_root, args.dest_dir)
         # print("will write to %s" % out_dir)
         try:
             os.makedirs(out_dir)
@@ -142,7 +160,13 @@ for fname_id, fname in enumerate(sorted(inputs)):
     p_keypoints = "%s/openpose_keypoints/color_%05d_keypoints.json" \
                   % (scene_root, frame_id)
     # todo: frame_id needs to be created
-    if os.path.exists(p_keypoints):
+    if args.skel2d is not None:
+	parts = np.array([skel2d.get_pose(frame_id=skel2d.unmod_frame_id(frame_id=frame_id, actor_id=actor_id))
+                          for actor_id in range(skel2d.n_actors)])
+        parts = np.transpose(np.concatenate((parts[:, 1:2, :],
+                                parts[:, 0:1, :]), axis=1), perm=(0, 2, 1))
+        visible = np.ones(shape=(parts.shape[0], parts.shape[2]))
+    elif os.path.exists(p_keypoints):
         is_openpose = True
         data = json.load(open(p_keypoints, 'r'))
         parts, visible, visible_float = \
