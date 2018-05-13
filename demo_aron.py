@@ -121,10 +121,14 @@ with tf.variable_scope('CPM'):
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
 
+pose_ids = None # []
+
 entries = {"image_shape": shape, 'vis_thresh': args.vis_thresh}
 out_dir = None
 prev_entry = None
 scene_root = os.path.join(os.path.dirname(inputs[0]), os.pardir)
+
+#"build/examples/openpose/openpose.bin --image_dir /media/data/amonszpa/stealth/shared/video_recordings/angrymen00/origjpg/ --write_json /media/data/amonszpa/stealth/shared/video_recordings/angrymen00/openpose_keypoints --display 0 -face"
 for fname_id, fname in enumerate(sorted(inputs)):
     if out_dir is None:
         out_dir = os.path.join(scene_root, "denis")
@@ -139,6 +143,7 @@ for fname_id, fname in enumerate(sorted(inputs)):
                   % (scene_root, frame_id)
     # todo: frame_id needs to be created
     if os.path.exists(p_keypoints):
+        is_openpose = True
         data = json.load(open(p_keypoints, 'r'))
         parts, visible, visible_float = \
             JointOpenPose.parse_keypoints(data['people'])
@@ -153,8 +158,20 @@ for fname_id, fname in enumerate(sorted(inputs)):
             visible = visible[:, :]
             visible_float = visible_float[:, :]
 
+        # y, x
+        parts, visible, visible_float = \
+            JointOpenPose.hallucinate(parts, visible, visible_float)
+        # parts[0, JointOpenPose.RANK, :] = (481, 699)
+        # parts[0, JointOpenPose.LANK, :] = (498.5, 757)
+        # visible[0, JointOpenPose.RANK] = True
+        # visible_float[0, JointOpenPose.RANK] = 1.
+        # visible[0, JointOpenPose.LANK] = True
+        # visible_float[0, JointOpenPose.LANK] = 1.
+        # parts[0, JointOpenPose.RANK, :] = (699, 481)
         parts *= scale
     else:
+        is_openpose = False
+
         b_image, image = load_image(fname)
         with tf.Session() as sess:
             # sess.run(tf.global_variables_initializer())
@@ -207,7 +224,8 @@ for fname_id, fname in enumerate(sorted(inputs)):
         pose2D, weights = Prob3dPose.transform_joints(parts, visible)
         # print("pose2D: %s" % repr(pose2D.shape))
         # print("ok1")
-        pose3D = poseLifting.compute_3d(pose2D, weights)
+        pose3D = poseLifting.compute_3d(pose2D, weights,
+                                        is_openpose=is_openpose)
         # print("pose3d: %s" % pose3D)
         # print("weights: %s" % weights)
         # print("pose3d.shape: %s" % repr(pose3D.shape))
@@ -216,7 +234,7 @@ for fname_id, fname in enumerate(sorted(inputs)):
         if not args.no_vis:
             # Show 2D poses
             plt.figure()
-            draw_limbs(image, parts, visible)
+            draw_limbs(image, parts, visible, pose_ids=pose_ids)
             plt.imshow(image)
             p_tmp = os.path.join(out_dir, os.pardir, "debug3",
                                  "debug_%05d.jpg" % frame_id)
@@ -224,8 +242,12 @@ for fname_id, fname in enumerate(sorted(inputs)):
             plt.axis('off')
 
             # Show 3D poses
-            for single_3D in pose3D:
+            for pid, single_3D in enumerate(pose3D):
                 plot_pose(poseLifting.centre_all(single_3D))
+                p_tmp = os.path.join(out_dir, os.pardir, "debug3",
+                                     "debug_%05d_p%d.jpg" % (frame_id, pid))
+                plt.savefig(p_tmp)
+
             plt.show()
             plt.close()
 

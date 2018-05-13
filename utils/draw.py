@@ -11,7 +11,7 @@ from config import LIMB_DRAW_SIZE
 import matplotlib.pyplot as plt
 
 
-def draw_limbs(image, pose_2d, visible):
+def draw_limbs(image, pose_2d, visible, pose_ids=None):
     """Draw the 2D pose without the occluded/not visible joints."""
 
     _COLORS = [[0, 0, 255], [0, 170, 255], [0, 255, 170], [0, 255, 0], [170, 255, 0],
@@ -19,6 +19,8 @@ def draw_limbs(image, pose_2d, visible):
     _LIMBS = np.array([0, 1, 2, 3, 3, 4, 5, 6, 6, 7, 8, 9, 9, 10, 11, 12, 12, 13]).reshape((-1, 2))
 
     for oid in xrange(pose_2d.shape[0]):
+        if pose_ids is not None and oid not in pose_ids:
+            continue
         for lid, (p0, p1) in enumerate(_LIMBS):
             if not (visible[oid][p0] and visible[oid][p1]):
                 continue
@@ -27,9 +29,13 @@ def draw_limbs(image, pose_2d, visible):
             cv2.circle(image, (x0, y0), JOINT_DRAW_SIZE, _COLORS[lid], -1)
             cv2.circle(image, (x1, y1), JOINT_DRAW_SIZE, _COLORS[lid], -1)
             cv2.line(image, (x0, y0), (x1, y1), _COLORS[lid], LIMB_DRAW_SIZE, 16)
+            cv2.putText(image, text="%d" % (p0), org=(x0, y0),
+                        fontFace=2, fontScale=0.75, color=(200, 100, 100))
+            cv2.putText(image, text="%d" % (p1), org=(x1, y1),
+                        fontFace=2, fontScale=0.75, color=(200, 100, 100))
         c = int(round(pose_2d[oid][0, 0])), int(round(pose_2d[oid][0, 1]))
         cv2.putText(image, text="%d" % oid,
-                    org=(c[0], c[1]), fontFace=1, fontScale=3,
+                    org=(c[1], c[0]), fontFace=1, fontScale=3,
                     color=(255, 200, 255))
 
 

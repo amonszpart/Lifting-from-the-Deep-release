@@ -44,6 +44,10 @@ class Prob3dPose:
         assert (s0.shape[1] == 3)
         assert (e.shape[2] == 3)
         assert (a.shape[1] == e.shape[1])
+        # mask = np.where(np.abs(a) > 10000.)
+        # if len(mask):
+        #     print("[ARON][prob_model.py::build_model] TRUNCATING pose COEFFS")
+        #     a[mask] = 1
         out = np.einsum('...i,...ijk', a, e)
         out += s0
         return out
@@ -129,7 +133,8 @@ class Prob3dPose:
         # defining weights according to occlusions
         weights = np.zeros((pose_2d.shape[0], 2, config.H36M_NUM_JOINTS))
         ordered_visibility = \
-            np.repeat(visible_joints[:, _H36M_ORDER, np.newaxis], 2, 2).transpose([0, 2, 1])
+            np.repeat(visible_joints[:, _H36M_ORDER, np.newaxis], 2, 2) \
+                .transpose([0, 2, 1])
         weights[:, :, _W_POS] = ordered_visibility
         return new_pose, weights
 
@@ -216,10 +221,15 @@ class Prob3dPose:
         rec *= 0.97
         return rec
 
-    def compute_3d(self, pose_2d, weights):
+    def compute_3d(self, pose_2d, weights, is_openpose=False):
         """Reconstruct 3D poses given 2D estimations"""
 
-        _J_POS = [1, 2, 3, 4, 5, 6, 8, 10, 11, 12, 13, 14, 15, 16]
+        _J_POS =[1, 2, 3, 4, 5, 6, 8, 10, 11, 12, 13, 14, 15, 16] # original
+        # if is_openpose:
+        #     # OpenPose returns neck (ie. nose) and not tip of head, so 8 => 9
+        #     _J_POS = [1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14, 15, 16]
+        #     weights[:, :, 9] = weights[:, :, 8]
+        #     weights[:, :, 8] = 0
         _SCALE_3D = 1174.88312988
 
         if pose_2d.shape[1] != config.H36M_NUM_JOINTS:

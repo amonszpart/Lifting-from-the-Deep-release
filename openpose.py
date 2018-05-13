@@ -26,6 +26,17 @@ class JointOpenPose(object):
     #  LSHO = 13
     #  LELB = 14
     #  LWRI = 15
+    HEAD = 0
+    THRX = 1
+    RSHO = 2
+    LSHO = 5
+    RHIP = 8
+    LHIP = 11
+    RKNE = 9
+    RANK = 10
+    LHIP = 11
+    LKNE = 12
+    LANK = 13
 
     _op_2_ours_2d = {
         # 0: ?, # NOSE/NECK
@@ -97,17 +108,60 @@ class JointOpenPose(object):
         visible = np.zeros(shape=(len(people), 14), dtype='b1')
         visible_f = np.zeros(shape=(len(people), 14))
         revmap = cls._revmap_lfd_2d
-        print(revmap)
+        # print(revmap)
         for pid, person in enumerate(people):
             kp = np.array(person['pose_keypoints_2d']).reshape((-1, 3))
             JointOpenPose.op_to_lfd(keypoints=kp[:, :2], out=lfd_2d[pid, ...])
             visible_f[pid, :] = kp[revmap, 2]
             visible[pid, :] = kp[revmap, 2] > conf_thresh
-        print(lfd_2d)
-        print(lfd_2d.shape)
-        print(visible)
+            fp = np.array(person['face_keypoints_2d']).reshape((-1, 3))
+            if fp[26, 2] > conf_thresh:
+                lfd_2d[pid, JointOpenPose.HEAD, :] = fp[26, :2]
+                visible_f[pid, JointOpenPose.HEAD] = fp[26, 2]
+                visible[pid, JointOpenPose.HEAD] = fp[26, 2] > conf_thresh
+        # print(lfd_2d)
+        # print(lfd_2d.shape)
+        # print(visible)
 
         return lfd_2d, visible, visible_f
+
+    @classmethod
+    def hallucinate(cls, poses_2d, visible, visible_f):
+        LEADS_TOP = [[JointOpenPose.THRX],
+                     [JointOpenPose.LSHO, JointOpenPose.RSHO]]
+        LEADS_BOTTOM = [[JointOpenPose.LHIP, JointOpenPose.RHIP]]
+        starts = {JointOpenPose.LANK: (JointOpenPose.LKNE, 0.66),
+                  JointOpenPose.RANK: (JointOpenPose.RKNE, 0.66)}
+                  # JointOpenPose.HEAD: (JointOpenPose.THRX, -0.2)}
+        for pid, pose_2d in enumerate(poses_2d):
+            to_fill = tuple(j for j in (JointOpenPose.RANK, JointOpenPose.LANK)
+                            if not visible[pid, j]
+                            and visible[pid, starts[j][0]])
+            if not len(to_fill):
+                continue
+
+            j_spine_bottom = next((js for js in LEADS_BOTTOM
+                                   if all(visible[pid, js])), None)
+            if j_spine_bottom is None:
+                continue
+
+            j_spine_top = next((js for js in LEADS_TOP
+                              if all(visible[pid, js])), None)
+            if j_spine_top is None:
+                continue
+            spine_bottom = np.mean(pose_2d[j_spine_bottom, :], axis=0)
+            spine_top = np.mean(pose_2d[j_spine_top, :], axis=0)
+            spine = spine_bottom - spine_top
+            for ankle in to_fill:
+                ratio = starts[ankle][1]
+                start = pose_2d[starts[ankle][0], :]
+                leg = start + spine * ratio
+                print("[%d] leg: %s" % (pid, leg))
+                pose_2d[ankle, :] = leg
+                visible[pid, ankle] = True
+                visible_f[pid, ankle] = 0.6
+
+        return poses_2d, visible, visible_f
 
 def main(argv):
     scene_root = "/media/data/amonszpa/stealth/shared/video_recordings/angrymen00"
