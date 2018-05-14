@@ -20,7 +20,7 @@
       </option>
     </PathMappingSettings>
     <option name="SCRIPT_NAME" value="/data/code/Lifting-from-the-Deep-release/demo_aron.py" />
-    <option name="PARAMETERS" value="-i /media/data/amonszpa/stealth/shared/video_recordings/angrymen00/origjpg/color_00001.jpg --center-thresh 0.2" />
+    <option name="PARAMETERS" value="-i /media/data/amonszpa/stealth/shared/video_recordings/angrymen00/origjpg/color_00002.jpg --center-thresh 0.2" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />

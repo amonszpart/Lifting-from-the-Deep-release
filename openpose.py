@@ -4,11 +4,12 @@ import json
 import cv2
 import shutil
 import numpy as np
+from enum import IntEnum
 
 np.set_printoptions(suppress=True)
 
 
-class JointOpenPose(object):
+class JointOpenPose(IntEnum):
     # Ours (stealth.logic.joints.Joints):
     #  RANK = 0
     #  RKNE = 1
@@ -29,60 +30,21 @@ class JointOpenPose(object):
     HEAD = 0
     THRX = 1
     RSHO = 2
+    RELB = 3
+    RWRI = 4
     LSHO = 5
+    LELB = 6
+    LWRI = 7
     RHIP = 8
-    LHIP = 11
     RKNE = 9
     RANK = 10
     LHIP = 11
     LKNE = 12
     LANK = 13
 
-    _op_2_ours_2d = {
-        # 0: ?, # NOSE/NECK
-        1: 7, # THRX
-        2: 12, # RSHO
-        3: 11, # RELB
-        4: 10, # RWRI
-        5: 13, # LSHO
-        6: 14, # LELB
-        7: 15, # LWRI
-        8: 2, # RHIP
-        9: 1, # RKNE
-        10: 0, # RANK
-        11: 3, # LHIP
-        12: 4, # LKNE
-        13: 5 # LANK
-        # 14: ?, # REYE
-        # 15: ?, # LEYE
-        # 16: ?, # REAR
-        # 17: ?, # LEAR
-    }
-    """Openpose to ours."""
+    END = 14
 
-    _op_2_lfd_2d = {
-        0: 0, # NOSE/NECK visually !! 9 is Joints.HEAD
-        1: 1, # THRX
-        2: 2, # RSHO
-        3: 3, # RELB
-        4: 4, # RWRI
-        5: 5, # LSHO
-        6: 6, # LELB
-        7: 7, # LWRI
-        8: 8, # RHIP
-        9: 9, # RKNE
-        10: 10, # RANK
-        11: 11, # LHIP
-        12: 12, # LKNE
-        13: 13  # LANK
-        # 14: ?, # REYE
-        # 15: ?, # LEYE
-        # 16: ?, # REAR
-        # 17: ?, # LEAR
-    }
 
-    _revmap_lfd_2d = [k for k, v in sorted(list(_op_2_lfd_2d.items()),
-                                           key=lambda e: e[1])]
 
     @classmethod
     def op_to_lfd(cls, keypoints, out=None):
@@ -162,6 +124,54 @@ class JointOpenPose(object):
                 visible_f[pid, ankle] = 0.6
 
         return poses_2d, visible, visible_f
+
+    def get_name(self):
+        return self.__str__().split('.')[-1]
+
+setattr(JointOpenPose, '_op_2_ours_2d', {
+    # 0: ?, # NOSE/NECK
+    1: 7, # THRX
+    2: 12, # RSHO
+    3: 11, # RELB
+    4: 10, # RWRI
+    5: 13, # LSHO
+    6: 14, # LELB
+    7: 15, # LWRI
+    8: 2, # RHIP
+    9: 1, # RKNE
+    10: 0, # RANK
+    11: 3, # LHIP
+    12: 4, # LKNE
+    13: 5 # LANK
+    # 14: ?, # REYE
+    # 15: ?, # LEYE
+    # 16: ?, # REAR
+    # 17: ?, # LEAR
+})
+setattr(JointOpenPose, '_op_2_lfd_2d', {
+    0: 0, # NOSE/NECK visually !! 9 is Joints.HEAD
+    1: 1, # THRX
+    2: 2, # RSHO
+    3: 3, # RELB
+    4: 4, # RWRI
+    5: 5, # LSHO
+    6: 6, # LELB
+    7: 7, # LWRI
+    8: 8, # RHIP
+    9: 9, # RKNE
+    10: 10, # RANK
+    11: 11, # LHIP
+    12: 12, # LKNE
+    13: 13  # LANK
+    # 14: ?, # REYE
+    # 15: ?, # LEYE
+    # 16: ?, # REAR
+    # 17: ?, # LEAR
+})
+
+setattr(JointOpenPose, '_JointOpenPose_revmap_lfd_2d',[
+    k for k, v in sorted(list(JointOpenPose._op_2_lfd_2d.items()),
+                         key=lambda e: e[1])])
 
 def main(argv):
     scene_root = "/media/data/amonszpa/stealth/shared/video_recordings/angrymen00"

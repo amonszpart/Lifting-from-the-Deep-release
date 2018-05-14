@@ -5,10 +5,10 @@ Created on Mar 23 15:04 2017
 @author: Denis Tome'
 """
 import cv2
-import numpy as np
-from config import JOINT_DRAW_SIZE
-from config import LIMB_DRAW_SIZE
 import matplotlib.pyplot as plt
+import numpy as np
+
+from utils.config import JOINT_DRAW_SIZE, LIMB_DRAW_SIZE
 
 
 def draw_limbs(image, pose_2d, visible, pose_ids=None):
@@ -41,7 +41,6 @@ def draw_limbs(image, pose_2d, visible, pose_ids=None):
 
 def plot_pose(pose):
     """Plot the 3D pose showing the joint connections."""
-    import mpl_toolkits.mplot3d.axes3d as p3
 
     _CONNECTION = [[0, 1], [1, 2], [2, 3], [0, 4], [4, 5], [5, 6], [0, 7], [7, 8], [8, 9],
                    [9, 10], [8, 11], [11, 12], [12, 13], [8, 14], [14, 15], [15, 16]]

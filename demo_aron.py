@@ -22,19 +22,28 @@ best = np.argmin(score, 0)
 
 best contains the index of the best PPCA model to use.
 """
+import json
+import os
+import sys
+
+import skimage  # by Aron for show_heatmaps
 import tensorflow as tf
 
 import utils.config as config
 import utils.process as ut
+from openpose import JointOpenPose
+from stealth.logic.scenelet import Scenelet
+from stealth.logic.skeleton import Skeleton
+from stealth.logic.joints import Joint
+from stealth.pose.skeleton import JointDenis
 from utils import cpm
 from utils.draw import *
 from utils.prob_model import Prob3dPose
-import os
-import json
 
-import skimage # by Aron for show_heatmaps
-from openpose import JointOpenPose
-from stealth.logic.scenelet import Scenelet
+if not sys.version_info[0] < 3:
+    from typing import Union
+
+from mpl_toolkits.mplot3d import Axes3D
 
 import argparse
 parser = argparse.ArgumentParser()
@@ -60,14 +69,6 @@ args = parser.parse_args()
 assert ((args.image is None) != (args.image_dir is None)), \
     "Need either image or directory"
 
-if hasattr(args, 'skel2d') and args.skel2d is not None:
-    if not args.skel2d.startswith(os.sep) \
-      and hasattr(args, 'd') and args.d is not None:
-        args.skel2d = os.path.normpath(
-          os.path.join(args.d, os.pardir, args.skel2d))
-    args.dest_dir = 'gt'
-else:
-    args.skel2d = None
 
 def default_encode(o):
     """JSON encoder for float values"""
@@ -143,10 +144,22 @@ out_dir = None
 prev_entry = None
 scene_root = os.path.join(os.path.dirname(inputs[0]), os.pardir)
 
-skel2d = Scenelet.load(args.skel2d) \
+if hasattr(args, 'skel2d') and args.skel2d is not None:
+    if not args.skel2d.startswith(os.sep) \
+      and hasattr(args, 'image_dir') and args.image_dir is not None:
+        args.skel2d = os.path.normpath(
+          os.path.join(args.image_dir, os.pardir, args.skel2d))
+    args.dest_dir = os.path.join(scene_root, 'gt')
+else:
+    args.skel2d = None
+
+skel2d = Scenelet.load(args.skel2d).skeleton \
     if args.skel2d is not None \
-    else None
+    else None  # type: Union[Skeleton, None]
+skel3d = Skeleton(frames_mod=skel2d.frames_mod, n_actors=skel2d.n_actors,
+                  min_frame_id=skel2d.min_frame_id)
 #"build/examples/openpose/openpose.bin --image_dir /media/data/amonszpa/stealth/shared/video_recordings/angrymen00/origjpg/ --write_json /media/data/amonszpa/stealth/shared/video_recordings/angrymen00/openpose_keypoints --display 0 -face"
+# -d /media/data/amonszpa/stealth/shared/video_recordings/library1-lcrnet/origjpg --skel2d quant/skel_GT_2d.json --no-vis
 for fname_id, fname in enumerate(sorted(inputs)):
     if out_dir is None:
         out_dir = os.path.join(scene_root, args.dest_dir)
@@ -157,15 +170,28 @@ for fname_id, fname in enumerate(sorted(inputs)):
             pass
     name_im = os.path.splitext(os.path.split(fname)[1])[0]
     frame_id = int(name_im.split('_')[-1])
+    if hasattr(args, 'start') and args.start is not None \
+      and frame_id < args.start:
+        continue
+    elif hasattr(args, 'end') and args.end is not None \
+        and args.end < frame_id:
+        continue
     p_keypoints = "%s/openpose_keypoints/color_%05d_keypoints.json" \
                   % (scene_root, frame_id)
     # todo: frame_id needs to be created
+    is_openpose = False
     if args.skel2d is not None:
-	parts = np.array([skel2d.get_pose(frame_id=skel2d.unmod_frame_id(frame_id=frame_id, actor_id=actor_id))
-                          for actor_id in range(skel2d.n_actors)])
-        parts = np.transpose(np.concatenate((parts[:, 1:2, :],
-                                parts[:, 0:1, :]), axis=1), perm=(0, 2, 1))
-        visible = np.ones(shape=(parts.shape[0], parts.shape[2]))
+        parts = np.array([
+            skel2d.get_pose(frame_id=skel2d.unmod_frame_id(
+              frame_id=frame_id, actor_id=actor_id,
+              frames_mod=skel2d.frames_mod))
+            for actor_id in range(skel2d.n_actors)])
+
+        rev_map = [Joint.from_string(JointOpenPose(j).get_name()) for j in range(JointOpenPose.END)]
+        parts = np.transpose(
+          np.concatenate((parts[:, 1:2, rev_map],
+                          parts[:, 0:1, rev_map]), axis=1), axes=(0, 2, 1))
+        visible = np.ones(shape=(parts.shape[0], parts.shape[1]))
     elif os.path.exists(p_keypoints):
         is_openpose = True
         data = json.load(open(p_keypoints, 'r'))
@@ -194,7 +220,6 @@ for fname_id, fname in enumerate(sorted(inputs)):
         # parts[0, JointOpenPose.RANK, :] = (699, 481)
         parts *= scale
     else:
-        is_openpose = False
 
         b_image, image = load_image(fname)
         with tf.Session() as sess:
@@ -260,8 +285,12 @@ for fname_id, fname in enumerate(sorted(inputs)):
             plt.figure()
             draw_limbs(image, parts, visible, pose_ids=pose_ids)
             plt.imshow(image)
-            p_tmp = os.path.join(out_dir, os.pardir, "debug3",
-                                 "debug_%05d.jpg" % frame_id)
+            p_tmp_dir = os.path.join(out_dir, os.pardir, "debug3")
+            try:
+                os.makedirs(p_tmp_dir)
+            except OSError:
+                pass
+            p_tmp = os.path.join(p_tmp_dir, "debug_%05d.jpg" % frame_id)
             plt.savefig(p_tmp)
             plt.axis('off')
 
@@ -272,16 +301,33 @@ for fname_id, fname in enumerate(sorted(inputs)):
                                      "debug_%05d_p%d.jpg" % (frame_id, pid))
                 plt.savefig(p_tmp)
 
-            plt.show()
+            # plt.show()
             plt.close()
 
         entry = {'pose_2d': parts.tolist(),
                  'visible': visible.astype(int).tolist(),
-                 'visible_float': visible_float.tolist(),  # "confidence"
                  'pose_3d': pose3D.tolist(),
                  'centered_3d': [poseLifting.centre_all(single_3D).tolist()
                                  for single_3D in pose3D]}
+        if 'visible_float' in locals():
+            entry['visible_float'] = visible_float.tolist()  # "confidence"
         entries[name_im] = entry
+
+        for actor_id, pose in enumerate(entry['centered_3d']):
+            frame_id2 = skel3d.unmod_frame_id(frame_id=frame_id,
+                                              actor_id=actor_id,
+                                              frames_mod=skel3d.frames_mod)
+            pose = np.array(pose)
+            pose = pose[:, JointDenis.revmap]
+            pose /= 1000.
+            # The output is scaled to 2m by Denis.
+            # We change this to 1.8 * a scale in order to correct for
+            # the skeletons being a bit too high still.
+            pose *= 1.8 / 2.
+            pose[2, :] *= -1.
+            pose = pose[[0, 2, 1], :]
+            skel3d.set_pose(frame_id=frame_id2, pose=pose,
+                            time=skel2d.get_time(frame_id))
 
         prev_entry = entry
     except ValueError as e:
@@ -303,7 +349,7 @@ with open(out_name, 'w') as f_out:
     json.dump(entries, f_out, default=default_encode, indent=2)
     print("Wrote to %s" % out_name)
 
-
+Scenelet(skeleton=skel3d).save(os.path.join(args.dest_dir, 'skel_GT_3d.json'))
 
 
 
