@@ -156,8 +156,11 @@ else:
 skel2d = Scenelet.load(args.skel2d).skeleton \
     if args.skel2d is not None \
     else None  # type: Union[Skeleton, None]
-skel3d = Skeleton(frames_mod=skel2d.frames_mod, n_actors=skel2d.n_actors,
-                  min_frame_id=skel2d.min_frame_id)
+if skel2d.n_actors > 1:
+    skel3d = Skeleton(frames_mod=skel2d.frames_mod, n_actors=skel2d.n_actors,
+                      min_frame_id=skel2d.min_frame_id)
+else:
+    skel3d = Skeleton()
 #"build/examples/openpose/openpose.bin --image_dir /media/data/amonszpa/stealth/shared/video_recordings/angrymen00/origjpg/ --write_json /media/data/amonszpa/stealth/shared/video_recordings/angrymen00/openpose_keypoints --display 0 -face"
 # -d /media/data/amonszpa/stealth/shared/video_recordings/library1-lcrnet/origjpg --skel2d quant/skel_GT_2d.json --no-vis
 for fname_id, fname in enumerate(sorted(inputs)):
@@ -326,8 +329,14 @@ for fname_id, fname in enumerate(sorted(inputs)):
             pose *= 1.8 / 2.
             pose[2, :] *= -1.
             pose = pose[[0, 2, 1], :]
+            pose[:, Joint.PELV] = (pose[:, Joint.RHIP] + pose[:, Joint.LHIP]) \
+                                  / 2.
             skel3d.set_pose(frame_id=frame_id2, pose=pose,
                             time=skel2d.get_time(frame_id))
+            for j in range(Skeleton.N_JOINTS):
+                conf = skel2d.get_confidence(frame_id=frame_id2, joint=j)
+                skel3d.set_confidence(frame_id=frame_id2, joint=j, confidence=conf)
+                skel3d.set_visible(frame_id=frame_id2, joint=j, visible=conf > 0.5)
 
         prev_entry = entry
     except ValueError as e:
