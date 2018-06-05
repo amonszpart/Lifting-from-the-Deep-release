@@ -156,7 +156,7 @@ else:
 skel2d = Scenelet.load(args.skel2d).skeleton \
     if args.skel2d is not None \
     else None  # type: Union[Skeleton, None]
-if skel2d.n_actors > 1:
+if skel2d is not None and skel2d.n_actors > 1:
     skel3d = Skeleton(frames_mod=skel2d.frames_mod, n_actors=skel2d.n_actors,
                       min_frame_id=skel2d.min_frame_id)
 else:
@@ -331,12 +331,13 @@ for fname_id, fname in enumerate(sorted(inputs)):
             pose = pose[[0, 2, 1], :]
             pose[:, Joint.PELV] = (pose[:, Joint.RHIP] + pose[:, Joint.LHIP]) \
                                   / 2.
-            skel3d.set_pose(frame_id=frame_id2, pose=pose,
-                            time=skel2d.get_time(frame_id))
-            for j in range(Skeleton.N_JOINTS):
-                conf = skel2d.get_confidence(frame_id=frame_id2, joint=j)
-                skel3d.set_confidence(frame_id=frame_id2, joint=j, confidence=conf)
-                skel3d.set_visible(frame_id=frame_id2, joint=j, visible=conf > 0.5)
+            if skel2d is not None:
+                skel3d.set_pose(frame_id=frame_id2, pose=pose,
+                                time=skel2d.get_time(frame_id))
+                for j in range(Skeleton.N_JOINTS):
+                    conf = skel2d.get_confidence(frame_id=frame_id2, joint=j)
+                    skel3d.set_confidence(frame_id=frame_id2, joint=j, confidence=conf)
+                    skel3d.set_visible(frame_id=frame_id2, joint=j, visible=conf > 0.5)
 
         prev_entry = entry
     except ValueError as e:
@@ -358,7 +359,8 @@ with open(out_name, 'w') as f_out:
     json.dump(entries, f_out, default=default_encode, indent=2)
     print("Wrote to %s" % out_name)
 
-Scenelet(skeleton=skel3d).save(os.path.join(args.dest_dir, 'skel_GT_3d.json'))
+if skel2d is not None:
+    Scenelet(skeleton=skel3d).save(os.path.join(args.dest_dir, 'skel_GT_3d.json'))
 
 
 
