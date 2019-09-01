@@ -11,11 +11,11 @@ import numpy as np
 from upright_fast import pick_e
 import utils.config as config
 
-_H36M_ORDER = [8, 9, 10, 11, 12, 13, 1, 0, 5, 6, 7, 2, 3, 4]
-_H36M_REV = [_H36M_ORDER.index(i) for i in range(len(_H36M_ORDER))]
 
 class Prob3dPose:
-
+    _H36M_ORDER = [8, 9, 10, 11, 12, 13, 1, 0, 5, 6, 7, 2, 3, 4]
+    _H36M_REV = [_H36M_ORDER.index(i) for i in range(len(_H36M_ORDER))]
+    
     def __init__(self, cam_matrix=[]):
         model_param = sio.loadmat('saved_sessions/prob_model/prob_model_params.mat')
         self.mu = np.reshape(model_param['mu'], (model_param['mu'].shape[0], 3, -1))
