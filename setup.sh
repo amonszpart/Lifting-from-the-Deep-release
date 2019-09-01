@@ -21,8 +21,8 @@ rm -rf person_MPI.tar.gz
 cd ..
 
 echo 'Installing dependencies...'
-pip install Cython
-pip install scikit-image
+pip2 install Cython
+pip2 install scikit-image
 
 echo 'Compiling external utilities...'
 cd utils/external/
