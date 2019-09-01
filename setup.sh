@@ -26,8 +26,8 @@ pip2 install scikit-image
 
 echo 'Compiling external utilities...'
 cd utils/external/
-#python setup_fast_rot.py build
-python setup_fast_rot.py build_ext --inplace
+python2 setup_fast_rot.py build
+#python2 setup_fast_rot.py build_ext --inplace
 cd ../../
 ln -sf utils/external/build/lib.linux-x86_64-2.7/upright_fast.so ./
 
