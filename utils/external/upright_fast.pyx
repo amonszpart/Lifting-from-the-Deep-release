@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+#cython: language_level=3
 """
 Created on Thu Feb  4 15:09:43 2016
 

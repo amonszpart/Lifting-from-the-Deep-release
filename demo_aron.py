@@ -32,10 +32,10 @@ import tensorflow as tf
 import utils.config as config
 import utils.process as ut
 from openpose import JointOpenPose
-from stealth.logic.scenelet import Scenelet
-from stealth.logic.skeleton import Skeleton
-from stealth.logic.joints import Joint
-from stealth.pose.skeleton import JointDenis
+from imapper.logic.scenelet import Scenelet
+from imapper.logic.skeleton import Skeleton
+from imapper.logic.joints import Joint
+from imapper.pose.skeleton import JointDenis
 from utils import cpm
 from utils.draw import *
 from utils.prob_model import Prob3dPose
