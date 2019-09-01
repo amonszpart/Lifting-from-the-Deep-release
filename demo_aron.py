@@ -338,6 +338,10 @@ for fname_id, fname in enumerate(sorted(inputs)):
                     conf = skel2d.get_confidence(frame_id=frame_id2, joint=j)
                     skel3d.set_confidence(frame_id=frame_id2, joint=j, confidence=conf)
                     skel3d.set_visible(frame_id=frame_id2, joint=j, visible=conf > 0.5)
+                    
+            # Store only first skeleton, if only one actor
+            if skel3d.frames_mod is None:
+                break
 
         prev_entry = entry
     except ValueError as e:
